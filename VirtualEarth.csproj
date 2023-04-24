@@ -75,6 +75,7 @@
     <Compile Include="Distances\HtmlDistanceAsyncScriptCommand.cs" />
     <Compile Include="HtmlScriptInteraction\HtmlAsyncScriptCommand.cs" />
     <Compile Include="HtmlScriptInteraction\HtmlAsyncScriptResult.cs" />
+    <Compile Include="MapStyle.cs" />
     <Compile Include="Network\NetworkManager.cs" />
     <Compile Include="PostCodes\HtmlPostCodeAsyncScriptCommand.cs" />
     <Compile Include="Utility\Constants.cs" />
