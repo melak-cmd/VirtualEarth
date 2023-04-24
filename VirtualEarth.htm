@@ -1,0 +1,238 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+    <head>
+        <script type="text/javascript" src="http://dev.virtualearth.net/mapcontrol/mapcontrol.ashx?v=6.2">
+        </script>
+
+        <script type="text/javascript">
+
+            // Global variables :-(
+            var gMap = null;
+            var gLat = 47.6;
+            var gLon = -122.33;
+            var gZoom = 10.0;
+            var gMapStyle = VEMapStyle.Hybrid;
+            var gPushPins = new Array();
+
+            // Flag to set to false and then I can run the page in IE.
+            var gHosted = true; 
+            
+            // Initialisation routines.
+            function OnInit()
+            {
+                CreateMap();
+                RegisterEventHandlers();
+                ReportInitialSettingsToControl();                
+                OnControlReady();
+            }
+            function CreateMap()
+            {
+                gMap = new VEMap('divMap');
+                gMap.SetDashboardSize(VEDashboardSize.Small);
+                gMap.LoadMap(new VELatLong(gLat, gLon), gZoom, gMapStyle);
+            }
+            function RegisterEventHandlers()
+            {
+                gMap.AttachEvent("onendpan", OnEndPan);
+                gMap.AttachEvent("onendzoom", OnEndZoom);
+                gMap.AttachEvent("onchangemapstyle", OnChangeMapStyle);
+                gMap.AttachEvent("onchangeview", OnChangeView);
+                gMap.AttachEvent("onerror", OnError);
+            }
+            function ReportInitialSettingsToControl()
+            {
+                OnChangeMapStyle(null);
+                OnEndZoom(null);
+                OnChangeView(null, true);                
+            }
+
+            // Virtual Earth Event Handlers.
+            function OnEndPan(e)
+            {
+                var latLon = gMap.GetCenter();
+                gLat = latLon.Latitude;
+                gLon = latLon.Longitude;
+
+                if (gHosted)
+                {
+                    window.external.JSMapEventLatLonHandler(gLat, gLon);
+                }
+            }
+            function OnEndZoom(e)
+            {
+                gZoom = gMap.GetZoomLevel();
+
+                if (gHosted)
+                {
+                    window.external.JSMapEventZoomHandler(gZoom);
+                }
+            }
+            function OnChangeMapStyle(e)
+            {
+                gMapStyle = gMap.GetMapStyle();
+
+                if (gHosted)
+                {
+                    window.external.JSMapEventMapStyleHandler(gMapStyle);
+                }
+            }
+            function OnChangeView(e, fire)
+            {
+                if (gHosted)
+                {
+                    // Looking for differences to avoid firing too many other
+                    // events from here.
+                    var centre = gMap.GetCenter();
+                    
+                    if (fire || (centre.Latitude != gLat) || (centre.Longitude != gLon))
+                    {
+                        OnEndPan(null);
+                    }
+                    var zoomLevel = gMap.GetZoomLevel();
+
+                    if (fire || (zoomLevel != gZoom))
+                    {
+                        OnEndZoom(null);
+                    } 
+                }
+            }
+            function OnError(e)
+            {
+                if (gHosted)
+                {
+                    window.external.JSMapEventError(e.error);
+                }
+            }
+
+            // Callback when the control is idle
+            function OnControlReady()
+            {                
+                if (gHosted)
+                {
+                    window.external.JSMapEventControlReadyHandler();
+                }
+            }
+
+            // Externally visible functions.
+            function SetCenter(lat, lon)
+            {
+                gLat = lat;
+                gLon = lon;
+                gMap.SetCenter(new VELatLong(gLat, gLon));
+            }
+            function SetZoomLevel(zoomLevel)
+            {
+                gZoom = zoomLevel;
+                gMap.SetZoomLevel(zoomLevel);
+            }
+            function SetMapStyle(mapStyle)
+            {
+                gMapStyle = mapStyle;
+                gMap.SetMapStyle(gMapStyle);
+            }
+            function LookupPostCode(postCode)
+            {                
+                gMap.Find(null, postCode, null, null, null, null, null, null, false, false,
+
+                    function callback(shapeLayer, resultsArray, placeArray, moreresults, errorMessage)
+                    {
+                        var lat = 0.0;
+                        var lon = 0.0;
+                        var error = false;
+
+                        if (placeArray != null)
+                        {
+                            lat = placeArray[0].LatLong.Latitude;
+                            lon = placeArray[0].LatLong.Longitude;
+                        }
+                        else
+                        {
+                            error = true;
+                        }
+                        if (gHosted)
+                        {
+                            window.external.JSMapEventFoundPostCode(error, errorMessage, lat, lon);
+                        }
+                    });
+            }
+            function AddPushPin(pushPinId, lat, lon, text)
+            {
+                var latLon = new VELatLong(lat, lon);
+                var pin = new VEShape(VEShapeType.Pushpin, latLon);
+                pin.SetDescription(text);
+                gMap.AddShape(pin);
+                gPushPins[pushPinId] = pin;
+            }
+            function RemovePushPin(pushPinId)
+            {
+                if (pushPinId == -1)
+                {
+                    var i = 0;
+
+                    for (i = 0; i < gPushPins.length; i++)
+                    {
+                        if (gPushPins[i])
+                        {
+                            gMap.DeleteShape(gPushPins[i]);
+                            gPushPins[i] = null;
+                        }
+                    }
+                }
+                else
+                {
+                    gMap.DeleteShape(gPushPins[pushPinId]);
+                    gPushPins[pushPinId] = null;
+                }
+            }
+            function CalculateDistance(pushPinId1, pushPinId2)
+            {
+                var pin1 = gPushPins[pushPinId1];
+                var pin2 = gPushPins[pushPinId2];
+                var latLon1 = pin1.GetPoints()[0];
+                var latLon2 = pin2.GetPoints()[0];
+                var pointArray = new Array();
+                pointArray[0] = latLon1;
+                pointArray[1] = latLon2;
+
+                var routeOptions = new VERouteOptions();
+                routeOptions.DrawRoute = false;
+                routeOptions.SetBestMapView = false;
+                routeOptions.ShowErrorMessages = true;
+                routeOptions.ShowDisambiguation = false;
+
+                routeOptions.RouteCallback = function(e)
+                {
+                    var error = false;
+                    var errorMessage = null;
+                    var distance = null;
+                    var time = null;
+
+                    if (e)
+                    {
+                        distance = e.Distance;
+                        time = e.Time;
+                    }
+                    else
+                    {
+                        error = true;
+                        errorMessage = "Failed to get route directions";
+                    }
+                    if (gHosted)
+                    {   
+                        window.external.JSMapEventFoundDistance(error, errorMessage,
+                            distance, time);
+                    }
+                };
+                gMap.GetDirections(pointArray, routeOptions);
+            }
+            function Resize()
+            {
+                gMap.Resize();
+            }
+        </script>
+    </head>
+    <body onload="OnInit()">
+        <div id='divMap' style="width: 100%; height: 100%;">
+        </div>
+    </body>
+</html>
